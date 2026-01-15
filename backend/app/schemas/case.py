@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -7,7 +9,12 @@ class CaseCreateResponse(BaseModel):
 
 class CaseResult(BaseModel):
     case_id: str
-    status: str
+    status: Literal["uploaded", "processing", "analyzed", "failed"]
     risk_score: int | None = None
     signals: dict | None = None
     explanation: str | None = None
+    created_at: str | None = None
+
+
+class CaseResponse(BaseModel):
+    case: CaseResult

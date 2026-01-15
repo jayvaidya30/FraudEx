@@ -1,4 +1,3 @@
-import google.generativeai as genai
 from app.core.config import settings
 
 
@@ -13,8 +12,13 @@ def analyze_document(text: str) -> str:
     if not is_configured():
         return "LLM analysis skipped (API key not configured)."
 
-    genai.configure(api_key=settings.gemini_api_key)
-    model = genai.GenerativeModel("gemini-pro")
+    try:
+        from google import genai
+        from google.genai import errors
+    except Exception:
+        return "LLM analysis skipped (google-genai not installed)."
+
+    client = genai.Client(api_key=settings.gemini_api_key)
 
     prompt = f"""
     You are an expert anti-corruption analyst. Analyze the following document text for indicators of fraud, corruption, or irregularity.
@@ -32,7 +36,17 @@ def analyze_document(text: str) -> str:
     """
 
     try:
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+        )
         return response.text
+    except errors.APIError as e:
+        return f"Error during LLM analysis: {e.message}"
     except Exception as e:
         return f"Error during LLM analysis: {str(e)}"
+    finally:
+        try:
+            client.close()
+        except Exception:
+            pass

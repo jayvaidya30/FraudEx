@@ -16,11 +16,9 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 from app.core.config import settings  # noqa: E402
-from app.db.base_class import Base  # noqa: E402
-from app.models import case  # noqa: F401,E402
 
 
-target_metadata = Base.metadata
+target_metadata = None
 
 
 def get_url() -> str:

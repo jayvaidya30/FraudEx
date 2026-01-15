@@ -1,3 +1,5 @@
+"""Deprecated SQLAlchemy session setup (unused)."""
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 

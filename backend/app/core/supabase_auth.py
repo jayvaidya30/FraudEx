@@ -22,6 +22,38 @@ _JWKS_CACHE: dict[str, object] = {"fetched_at": 0.0, "jwks": None}
 _JWKS_TTL_SECONDS = 10 * 60
 
 
+async def _fetch_user_via_supabase(token: str) -> CurrentUser:
+    if not settings.supabase_url or not settings.supabase_anon_key:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Supabase auth is not configured (SUPABASE_URL/SUPABASE_ANON_KEY missing)",
+        )
+
+    url = settings.supabase_url.rstrip("/") + "/auth/v1/user"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        # Supabase auth endpoints expect the project's public API key.
+        "apikey": settings.supabase_anon_key,
+    }
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(url, headers=headers)
+        if resp.status_code == 401:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token verification failed")
+        resp.raise_for_status()
+        data = resp.json() or {}
+
+    if not (data.get("id") or data.get("sub")):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token missing subject")
+
+    return CurrentUser(
+        id=str(data.get("id") or data.get("sub") or ""),
+        email=data.get("email"),
+        role=(data.get("role") or (data.get("app_metadata") or {}).get("role")),
+        raw_claims=data,
+    )
+
+
 async def _get_jwks() -> dict:
     jwks_url = settings.supabase_jwks_url
     if not jwks_url:
@@ -63,28 +95,50 @@ async def get_current_user(authorization: str | None = Header(default=None)) -> 
     except Exception:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token header")
 
+    # Preferred: RS256 verification via JWKS when kid is present.
     kid = header.get("kid")
-    if not kid:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token missing kid")
+    issuer = settings.supabase_jwt_issuer_value
+    issuer_options = {"verify_iss": bool(issuer)}
+    if kid:
+        jwks = await _get_jwks()
+        keys = jwks.get("keys") or []
+        jwk_dict = next((k for k in keys if k.get("kid") == kid), None)
+        if not jwk_dict:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unknown signing key")
 
-    jwks = await _get_jwks()
-    keys = jwks.get("keys") or []
-    jwk_dict = next((k for k in keys if k.get("kid") == kid), None)
-    if not jwk_dict:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unknown signing key")
+        try:
+            key = jwk.construct(jwk_dict)
+            public_pem = key.to_pem().decode("utf-8")
+            claims = jwt.decode(
+                token,
+                public_pem,
+                algorithms=["RS256"],
+                audience=settings.supabase_jwt_audience,
+                issuer=issuer,
+                options={"verify_aud": True, **issuer_options},
+            )
+        except Exception:
+            # If local verification fails for any reason, fall back to Supabase API validation.
+            return await _fetch_user_via_supabase(token)
+    else:
+        # Fallback: HS256 verification for Supabase tokens that don't include a kid.
+        if settings.supabase_jwt_secret:
+            try:
+                claims = jwt.decode(
+                    token,
+                    settings.supabase_jwt_secret,
+                    algorithms=["HS256"],
+                    audience=settings.supabase_jwt_audience,
+                    issuer=issuer,
+                    options={"verify_aud": True, **issuer_options},
+                )
+            except Exception:
+                return await _fetch_user_via_supabase(token)
+        else:
+            return await _fetch_user_via_supabase(token)
 
-    try:
-        key = jwk.construct(jwk_dict)
-        public_pem = key.to_pem().decode("utf-8")
-        claims = jwt.decode(
-            token,
-            public_pem,
-            algorithms=settings.supabase_jwt_algorithms,
-            audience=settings.supabase_jwt_audience,
-            options={"verify_aud": True},
-        )
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token verification failed")
+    if not claims.get("sub"):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token missing subject")
 
     return CurrentUser(
         id=str(claims.get("sub") or ""),

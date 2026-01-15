@@ -1,1 +1,1 @@
-"""Database session and base models."""
+"""Deprecated SQLAlchemy layer (unused)."""

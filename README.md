@@ -84,10 +84,13 @@ FraudEx/
 Backend
 cd backend
 pip install -r requirements.txt
-uvicorn main:app --reload
+uvicorn app.main:app --reload
 
 
 Runs at: http://localhost:8000
+
+Environment
+Copy backend/.env.example to backend/.env and fill in Supabase + Gemini values before running the backend.
 
 Frontend
 cd frontend

@@ -30,12 +30,14 @@ export function TopNav() {
 
   useEffect(() => {
     if (!showNav) return;
-    if (!supabase) return;
+    const client = supabase;
+    if (!client) return;
 
     let cancelled = false;
 
     async function load() {
-      const { data } = await supabase.auth.getSession();
+      if (!client) return;
+      const { data } = await client.auth.getSession();
       const token = data.session?.access_token;
       if (!token) return;
       try {

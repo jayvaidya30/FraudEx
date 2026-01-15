@@ -3,6 +3,9 @@ from __future__ import annotations
 from fastapi import Depends, Header, HTTPException, status
 
 from app.core.supabase_auth import CurrentUser, get_current_user
+from app.repositories.case_repo import CaseRepository
+from app.services.case_service import CaseService
+from app.services.supabase_postgrest import SupabasePostgrest
 
 
 def require_user(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
@@ -18,12 +21,10 @@ def get_access_token(authorization: str | None = Header(default=None)) -> str:
     return parts[1].strip()
 
 
-from app.db.session import SessionLocal
-from typing import Generator
+def get_case_service(access_token: str = Depends(get_access_token)) -> CaseService:
+    client = SupabasePostgrest(access_token=access_token)
+    repo = CaseRepository(client)
+    return CaseService(repo)
 
-def get_db() -> Generator:
-    try:
-        db = SessionLocal()
-        yield db
-    finally:
-        db.close()
+
+

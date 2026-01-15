@@ -38,7 +38,7 @@ pdf2image
 pymupdf
 
 # LLM (Gemini)
-google-generativeai
+google-genai
 
 # Logging
 structlog

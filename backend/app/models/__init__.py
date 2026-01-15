@@ -1,1 +1,1 @@
-"""SQLAlchemy models."""
+"""Deprecated SQLAlchemy models (unused)."""

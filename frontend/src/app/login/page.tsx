@@ -9,8 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isSupabaseConfigured } from "@/lib/config";
+import { getErrorMessage } from "@/lib/errors";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 export default function LoginPage() {
@@ -35,8 +37,8 @@ export default function LoginPage() {
       if (error) throw error;
       toast.success("Signed in");
       router.push("/dashboard");
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to sign in");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || "Failed to sign in");
     } finally {
       setLoading(false);
     }
@@ -52,8 +54,8 @@ export default function LoginPage() {
       const { error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
       toast.success("Account created. You can now sign in.");
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to sign up");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || "Failed to sign up");
     } finally {
       setLoading(false);
     }
@@ -61,8 +63,39 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-[calc(100vh-0px)] bg-background">
-      <div className="mx-auto flex min-h-screen max-w-6xl items-center justify-center px-4">
-        <Card className="w-full max-w-md">
+      <div className="mx-auto grid min-h-screen max-w-6xl items-center gap-6 px-4 lg:grid-cols-2">
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-semibold tracking-tight">FraudEx</h1>
+            <p className="text-sm text-muted-foreground">
+              Sign in for analyst access. FraudEx is a reviewer tool that surfaces risk indicators and explains why a
+              document may need attention.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Human verification</CardTitle>
+                <CardDescription>Always required.</CardDescription>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground">
+                The system does not determine guilt or corruption.
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Explainability</CardTitle>
+                <CardDescription>Designed for review.</CardDescription>
+              </CardHeader>
+              <CardContent className="text-sm text-muted-foreground">
+                You get a score, top contributing factors, and recommendations.
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        <Card className="w-full max-w-md justify-self-center">
           <CardHeader>
             <CardTitle>FraudEx</CardTitle>
             <CardDescription>
@@ -126,6 +159,8 @@ export default function LoginPage() {
               </div>
             </Tabs>
             )}
+
+            <Separator className="my-6" />
 
             <div className="mt-6 text-sm text-muted-foreground">
               <Link href="/" className="hover:text-foreground">

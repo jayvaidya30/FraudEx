@@ -1,3 +1,5 @@
+"""Deprecated SQLAlchemy base (unused)."""
+
 from sqlalchemy.orm import DeclarativeBase
 
 
