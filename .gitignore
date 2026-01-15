@@ -9,8 +9,8 @@ build/
 develop-eggs/
 dist/
 eggs/
-lib/
-lib64/
+# lib/ - removed to allow frontend/src/lib
+# lib64/ - removed to allow frontend/src/lib
 parts/
 sdist/
 var/
@@ -173,7 +173,6 @@ $RECYCLE.BIN/
 
 
 ### Less ###
-*.css
 
 
 ### grunt ###
