@@ -42,9 +42,22 @@ def _extract_from_pdf(pdf_path: Path) -> str:
         raw_text = "\n".join(text_content)
         if len(raw_text.strip()) < 50:
             # Try converting first page to image and OCR
-            # Requires pdf2image usually, but let's stick to pymupdf text for now as MVP requirement was loose.
-            # SRS said: "extract text using OCR when required."
-            pass
+            try:
+                from pdf2image import convert_from_path
+                import pytesseract
+                
+                # Convert only the first few pages to avoid massive processing time for MVP
+                images = convert_from_path(str(pdf_path), first_page=1, last_page=3)
+                ocr_text = ""
+                for img in images:
+                    ocr_text += pytesseract.image_to_string(img)
+                
+                if len(ocr_text.strip()) > len(raw_text.strip()):
+                    return ocr_text
+            except ImportError:
+                print("pdf2image or pytesseract not installed/configured.")
+            except Exception as e:
+                print(f"OCR fallback failed: {e}")
             
         return raw_text
     except Exception as e:

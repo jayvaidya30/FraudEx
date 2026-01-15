@@ -16,3 +16,14 @@ def get_access_token(authorization: str | None = Header(default=None)) -> str:
     if len(parts) != 2 or parts[0].lower() != "bearer" or not parts[1].strip():
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Authorization header")
     return parts[1].strip()
+
+
+from app.db.session import SessionLocal
+from typing import Generator
+
+def get_db() -> Generator:
+    try:
+        db = SessionLocal()
+        yield db
+    finally:
+        db.close()

@@ -35,3 +35,12 @@ class SupabasePostgrest:
             if not response.content:
                 return None
             return response.json()
+
+    async def patch(self, path: str, *, params: dict[str, Any] | None = None, json: Any) -> Any:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            headers = {**self._headers, "Prefer": "return=representation"}
+            response = await client.patch(self._base_url + path, headers=headers, params=params, json=json)
+            response.raise_for_status()
+            if not response.content:
+                return None
+            return response.json()

@@ -15,6 +15,7 @@ python-multipart
 # Auth
 python-jose[cryptography]
 passlib[bcrypt]
+email-validator
 
 # Rate limiting
 slowapi
@@ -41,3 +42,6 @@ google-generativeai
 
 # Logging
 structlog
+pytest
+pytest-asyncio
+httpx
