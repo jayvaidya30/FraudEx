@@ -16,8 +16,11 @@
   "main": "server.js",
   "scripts": {
     "dev": "concurrently -k -n backend,frontend -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:lowmem": "concurrently -k -n backend,frontend -c blue,green \"npm run dev:backend:lowmem\" \"npm run dev:frontend:lowmem\"",
     "dev:backend": "cd backend && ./py-env/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "dev:backend:lowmem": "cd backend && ./py-env/bin/uvicorn app.main:app --reload --reload-dir app --reload-exclude py-env --reload-exclude data --host 0.0.0.0 --port 8000",
     "dev:frontend": "npm --prefix frontend run dev",
+    "dev:frontend:lowmem": "NODE_OPTIONS=--max-old-space-size=1536 NEXT_TELEMETRY_DISABLED=1 npm --prefix frontend run dev:lowmem",
     "build": "npm run build:frontend",
     "build:frontend": "npm --prefix frontend run build",
     "lint": "npm run lint:frontend",
@@ -25,6 +28,9 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "@tailwindcss/postcss": "^4.1.18",
+    "concurrently": "^9.2.1",
+    "tailwindcss": "^4.1.18",
+    "tw-animate-css": "^1.4.0"
   }
 }

@@ -5,31 +5,17 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  CohortAnalysisChart,
-  DetectorPerformance,
-  MetricCard,
-  RiskDistributionChart,
-  TopSignals,
-  TrendChart,
-} from "@/components/app/analytics";
-import {
-  Activity,
-  AlertTriangle,
-  FileText,
-  Hourglass,
-  Loader2,
-  ShieldAlert,
-  UploadCloud,
-  XCircle,
-} from "lucide-react";
+import { TopSignals } from "@/components/app/analytics";
+import { AnomalyDetectionCard, type Anomaly, ComparisonBarChart, type ComparisonItem, MetricCard, MetricGrid } from "@/components/app";
+import { DetectorPerformanceBarChart } from "@/components/app/analytics/detector-performance-bar-chart";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getAnalyticsSummary, type AnalyticsSummary } from "@/lib/backend";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getAnalyticsSummary, getRiskDistribution, type AnalyticsSummary } from "@/lib/backend";
 import { isSupabaseConfigured } from "@/lib/config";
 import { getSupabaseBrowserClient } from "@/lib/supabase";
 import { getErrorMessage } from "@/lib/errors";
+import { FileText, AlertTriangle, Activity, TrendingUp } from "lucide-react";
 
 export default function AnalyticsPage() {
   const router = useRouter();
@@ -42,6 +28,13 @@ export default function AnalyticsPage() {
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [riskDistData, setRiskDistData] = useState<{
+    distribution: any;
+    total_analyzed: number;
+    average_score: number;
+    min_score: number;
+    max_score: number;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,8 +64,12 @@ export default function AnalyticsPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await getAnalyticsSummary(token!);
+        const [data, riskDist] = await Promise.all([
+          getAnalyticsSummary(token!),
+          getRiskDistribution(token!)
+        ]);
         setAnalytics(data);
+        setRiskDistData(riskDist);
       } catch (err: unknown) {
         const message = getErrorMessage(err) || "Failed to load analytics";
         setError(message);
@@ -84,6 +81,115 @@ export default function AnalyticsPage() {
 
     void fetchAnalytics();
   }, [token]);
+
+  // Calculate anomalies (what changed)
+  const anomalies: Anomaly[] = useMemo(() => {
+    if (!analytics || analytics.trends_7d.length < 2) return [];
+
+    const recent = analytics.trends_7d[analytics.trends_7d.length - 1];
+    const previous = analytics.trends_7d[analytics.trends_7d.length - 2];
+
+    const result: Anomaly[] = [];
+
+    // High risk cases change
+    if (recent.high_risk_count !== previous.high_risk_count) {
+      const changePercent = previous.high_risk_count > 0
+        ? ((recent.high_risk_count - previous.high_risk_count) / previous.high_risk_count) * 100
+        : 100;
+      const severity = Math.abs(changePercent) > 50 ? "critical" : Math.abs(changePercent) > 25 ? "high" : "medium";
+      result.push({
+        id: "high-risk-change",
+        metric: "High Risk Cases",
+        currentValue: recent.high_risk_count,
+        previousValue: previous.high_risk_count,
+        changePercent,
+        severity,
+        description: changePercent > 0
+          ? "Significant increase in high-risk cases detected"
+          : "Decrease in high-risk cases",
+      });
+    }
+
+    // Average risk score change
+    if (Math.abs(recent.avg_risk_score - previous.avg_risk_score) > 5) {
+      const changePercent = previous.avg_risk_score > 0
+        ? ((recent.avg_risk_score - previous.avg_risk_score) / previous.avg_risk_score) * 100
+        : 0;
+      result.push({
+        id: "avg-risk-change",
+        metric: "Average Risk Score",
+        currentValue: Math.round(recent.avg_risk_score),
+        previousValue: Math.round(previous.avg_risk_score),
+        changePercent,
+        severity: Math.abs(changePercent) > 20 ? "high" : "medium",
+        description: changePercent > 0
+          ? "Overall risk level trending upward"
+          : "Overall risk level trending downward",
+      });
+    }
+
+    // Case volume change
+    if (recent.count !== previous.count) {
+      const changePercent = previous.count > 0
+        ? ((recent.count - previous.count) / previous.count) * 100
+        : 100;
+      if (Math.abs(changePercent) > 30) {
+        result.push({
+          id: "volume-change",
+          metric: "Case Volume",
+          currentValue: recent.count,
+          previousValue: previous.count,
+          changePercent,
+          severity: Math.abs(changePercent) > 50 ? "high" : "medium",
+          description: changePercent > 0
+            ? "Unusual spike in case submissions"
+            : "Significant drop in case submissions",
+        });
+      }
+    }
+
+    return result;
+  }, [analytics]);
+
+  // Comparison data (before vs after)
+  const comparisonItems: ComparisonItem[] = useMemo(() => {
+    if (!analytics || analytics.trends_7d.length < 4) return [];
+
+    // Compare last 3 days with previous 3 days
+    const recent3 = analytics.trends_7d.slice(-3);
+    const previous3 = analytics.trends_7d.slice(-6, -3);
+
+    const recentAvg = {
+      count: recent3.reduce((s, t) => s + t.count, 0) / 3,
+      highRisk: recent3.reduce((s, t) => s + t.high_risk_count, 0) / 3,
+      avgRisk: recent3.reduce((s, t) => s + t.avg_risk_score, 0) / 3,
+    };
+
+    const previousAvg = {
+      count: previous3.reduce((s, t) => s + t.count, 0) / 3,
+      highRisk: previous3.reduce((s, t) => s + t.high_risk_count, 0) / 3,
+      avgRisk: previous3.reduce((s, t) => s + t.avg_risk_score, 0) / 3,
+    };
+
+    return [
+      {
+        label: "Daily Cases",
+        beforeValue: Math.round(previousAvg.count),
+        afterValue: Math.round(recentAvg.count),
+      },
+      {
+        label: "High Risk Cases",
+        beforeValue: Math.round(previousAvg.highRisk),
+        afterValue: Math.round(recentAvg.highRisk),
+      },
+      {
+        label: "Average Risk Score",
+        beforeValue: Math.round(previousAvg.avgRisk),
+        afterValue: Math.round(recentAvg.avgRisk),
+        maxValue: 100,
+      },
+    ];
+  }, [analytics]);
 
   if (!isSupabaseConfigured) {
     return (
@@ -104,9 +210,9 @@ export default function AnalyticsPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="space-y-1">
-            <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">Pattern Intelligence</h1>
             <p className="text-sm text-muted-foreground">
-              Fraud detection insights and trends across all cases
+              Anomaly detection and change analysis across fraud patterns
             </p>
           </div>
           <div className="flex gap-2">
@@ -139,8 +245,8 @@ export default function AnalyticsPage() {
             </div>
           </div>
         ) : error ? (
-          <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-6 text-center">
-            <h3 className="font-semibold text-destructive">Error Loading Analytics</h3>
+          <div className="rounded-lg border border-black/20 p-6 text-center">
+            <h3 className="font-semibold">Error Loading Analytics</h3>
             <p className="text-sm text-muted-foreground mt-2">{error}</p>
             <Button
               variant="outline"
@@ -152,135 +258,100 @@ export default function AnalyticsPage() {
           </div>
         ) : analytics ? (
           <>
-            {/* Key Metrics Row */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <MetricCard
-                title="Total Cases"
-                value={analytics.total_cases}
-                subtitle={`${analytics.analyzed_cases} analyzed`}
-                icon={<FileText className="h-5 w-5" />}
-              />
-              <MetricCard
-                title="Avg Risk Score"
-                value={analytics.avg_risk_score.toFixed(1)}
-                subtitle="Across all analyzed cases"
-                icon={<Activity className="h-5 w-5" />}
-                variant={
-                  analytics.avg_risk_score >= 60
-                    ? "danger"
-                    : analytics.avg_risk_score >= 40
-                    ? "warning"
-                    : "success"
-                }
-              />
-              <MetricCard
-                title="High Risk Cases"
-                value={analytics.high_risk_count}
-                subtitle="Score ≥ 60"
-                icon={<AlertTriangle className="h-5 w-5" />}
-                variant="warning"
-              />
-              <MetricCard
-                title="Critical Cases"
-                value={analytics.critical_risk_count}
-                subtitle="Score ≥ 80"
-                icon={<ShieldAlert className="h-5 w-5" />}
-                variant="danger"
-              />
+            {/* Key Change Metrics - What Changed */}
+            <div className="space-y-4">
+              <h2 className="text-lg font-semibold tracking-tight">Key Changes</h2>
+              <MetricGrid columns={4}>
+                <MetricCard
+                  title="Total Cases"
+                  value={analytics.total_cases}
+                  currentValue={analytics.trends_7d[analytics.trends_7d.length - 1]?.count}
+                  previousValue={analytics.trends_7d[analytics.trends_7d.length - 2]?.count}
+                  subtitle="Last 7 days"
+                  icon={<FileText className="h-4 w-4" />}
+                  priority="low"
+                />
+                <MetricCard
+                  title="Analyzed"
+                  value={analytics.analyzed_cases}
+                  subtitle={`${((analytics.analyzed_cases / analytics.total_cases) * 100).toFixed(0)}% of total`}
+                  icon={<Activity className="h-4 w-4" />}
+                  priority="low"
+                />
+                <MetricCard
+                  title="High Risk"
+                  value={analytics.high_risk_count}
+                  currentValue={analytics.trends_7d[analytics.trends_7d.length - 1]?.high_risk_count}
+                  previousValue={analytics.trends_7d[analytics.trends_7d.length - 2]?.high_risk_count}
+                  subtitle="Requires attention"
+                  icon={<AlertTriangle className="h-4 w-4" />}
+                  priority={analytics.high_risk_count > 5 ? "high" : "medium"}
+                />
+                <MetricCard
+                  title="Average Risk"
+                  value={analytics.avg_risk_score.toFixed(1)}
+                  currentValue={analytics.avg_risk_score}
+                  previousValue={analytics.trends_7d[analytics.trends_7d.length - 2]?.avg_risk_score}
+                  subtitle="Risk score"
+                  icon={<TrendingUp className="h-4 w-4" />}
+                  priority={analytics.avg_risk_score > 60 ? "high" : "medium"}
+                />
+              </MetricGrid>
             </div>
 
-            {/* Second row: Pending + Status */}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <MetricCard
-                title="Pending Review"
-                value={analytics.pending_review_count}
-                subtitle="Awaiting analysis"
-                icon={<Hourglass className="h-5 w-5" />}
+            {/* Anomaly Detection - Primary Focus */}
+            {anomalies.length > 0 && (
+              <AnomalyDetectionCard
+                anomalies={anomalies}
+                title="Anomaly Detection"
+                description="Significant deviations from baseline patterns"
               />
-              <MetricCard
-                title="Uploaded"
-                value={analytics.status_distribution.uploaded}
-                subtitle="Ready for analysis"
-                icon={<UploadCloud className="h-5 w-5" />}
-              />
-              <MetricCard
-                title="Processing"
-                value={analytics.status_distribution.processing}
-                subtitle="Currently analyzing"
-                icon={<Loader2 className="h-5 w-5" />}
-              />
-              <MetricCard
-                title="Failed"
-                value={analytics.status_distribution.failed}
-                subtitle="Analysis errors"
-                icon={<XCircle className="h-5 w-5" />}
-                variant={analytics.status_distribution.failed > 0 ? "danger" : "default"}
-              />
+            )}
+
+            {/* Change Analysis - Before vs After */}
+            <div className="grid gap-6 lg:grid-cols-2">
+              {comparisonItems.length > 0 && (
+                <ComparisonBarChart
+                  items={comparisonItems}
+                  title="Trend Analysis"
+                  description="Last 3 days vs previous 3 days"
+                  beforeLabel="Previous"
+                  afterLabel="Recent"
+                />
+              )}
+
+              {/* Top Signals */}
+              <TopSignals signals={analytics.top_signals} />
             </div>
 
-            {/* Tabs for different views */}
-            <Tabs defaultValue="overview" className="space-y-4">
-              <TabsList>
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="trends">Trends</TabsTrigger>
-                <TabsTrigger value="signals">Signals</TabsTrigger>
-                <TabsTrigger value="cohorts">Cohorts</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="overview" className="space-y-6">
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <RiskDistributionChart
-                    distribution={analytics.risk_distribution}
-                    total={analytics.analyzed_cases}
-                  />
-                  <TopSignals signals={analytics.top_signals} />
-                </div>
-                <DetectorPerformance stats={analytics.detector_stats} />
-              </TabsContent>
-
-              <TabsContent value="trends" className="space-y-6">
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <TrendChart
-                    data={analytics.trends_7d}
-                    title="Last 7 Days"
-                    description="Recent case activity and risk trends"
-                  />
-                  <TrendChart
-                    data={analytics.trends_30d}
-                    title="Last 30 Days"
-                    description="Monthly case activity overview"
-                  />
-                </div>
-              </TabsContent>
-
-              <TabsContent value="signals" className="space-y-6">
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <TopSignals signals={analytics.top_signals} />
-                  <DetectorPerformance stats={analytics.detector_stats} />
-                </div>
-              </TabsContent>
-
-              <TabsContent value="cohorts" className="space-y-6">
-                <CohortAnalysisChart cohorts={analytics.cohorts} />
-              </TabsContent>
-            </Tabs>
+            {/* Detector Effectiveness */}
+            <DetectorPerformanceBarChart 
+              stats={analytics.detector_stats}
+              title="Detector Effectiveness"
+              description="Detection performance ranked by effectiveness"
+            />
 
             {/* Recent high-risk cases */}
             {analytics.recent_high_risk_cases.length > 0 && (
-              <div className="rounded-lg border p-4">
-                <h3 className="font-semibold mb-3">Recent High-Risk Cases</h3>
-                <div className="flex flex-wrap gap-2">
-                  {analytics.recent_high_risk_cases.map((caseId) => (
-                    <Link
-                      key={caseId}
-                      href={`/cases/${caseId}`}
-                      className="inline-flex items-center rounded-md border px-3 py-1 text-sm font-mono hover:bg-muted transition-colors"
-                    >
-                      {caseId.slice(0, 8)}...
-                    </Link>
-                  ))}
-                </div>
-              </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent High-Risk Cases</CardTitle>
+                  <CardDescription>Cases requiring immediate review</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap gap-2">
+                    {analytics.recent_high_risk_cases.map((caseId) => (
+                      <Link
+                        key={caseId}
+                        href={`/cases/${caseId}`}
+                        className="inline-flex items-center rounded-md border px-3 py-1 text-sm font-mono hover:bg-muted transition-colors"
+                      >
+                        {caseId.slice(0, 8)}...
+                      </Link>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             )}
 
             {/* Footer with generation time */}

@@ -1,9 +1,5 @@
 from pathlib import Path
 
-import pymupdf  # fitz
-import pytesseract
-from PIL import Image
-
 
 def extract_text(file_path: str | Path) -> str:
     """
@@ -33,6 +29,7 @@ def extract_text(file_path: str | Path) -> str:
 def _extract_from_pdf(pdf_path: Path) -> str:
     text_content = []
     try:
+        import pymupdf  # fitz
         with pymupdf.open(pdf_path) as doc:
             for page in doc:
                 text_content.append(page.get_text())
@@ -67,6 +64,8 @@ def _extract_from_pdf(pdf_path: Path) -> str:
 
 def _extract_from_image(img_path: Path) -> str:
     try:
+        import pytesseract
+        from PIL import Image
         return pytesseract.image_to_string(Image.open(img_path))
     except Exception as e:
         print(f"Error extracting image text: {e}")

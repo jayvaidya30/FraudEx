@@ -4,6 +4,7 @@ import { RiskDisclaimer } from "@/components/app/risk-disclaimer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export default function Home() {
   return (
@@ -35,25 +36,37 @@ export default function Home() {
           <Separator />
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Human review required</CardTitle>
-                <CardDescription>Risk indicators are not conclusions.</CardDescription>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                FraudEx highlights anomalies and prioritization cues; reviewers confirm facts, context, and intent.
-              </CardContent>
-            </Card>
+            <TooltipProvider>
+              <Card>
+                <CardHeader>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <CardTitle className="cursor-help">Human review required</CardTitle>
+                    </TooltipTrigger>
+                    <TooltipContent>AI-assisted, not AI-decided.</TooltipContent>
+                  </Tooltip>
+                  <CardDescription>Risk indicators are not conclusions.</CardDescription>
+                </CardHeader>
+                <CardContent className="text-sm text-muted-foreground">
+                  FraudEx highlights anomalies and prioritization cues; reviewers confirm facts, context, and intent.
+                </CardContent>
+              </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Explainable outputs</CardTitle>
-                <CardDescription>Plain-language reasoning.</CardDescription>
-              </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Each case includes contributing factors, recommendations, and a traceable detector breakdown.
-              </CardContent>
-            </Card>
+              <Card>
+                <CardHeader>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <CardTitle className="cursor-help">Explainable outputs</CardTitle>
+                    </TooltipTrigger>
+                    <TooltipContent>Clear reasoning for every indicator.</TooltipContent>
+                  </Tooltip>
+                  <CardDescription>Plain-language reasoning.</CardDescription>
+                </CardHeader>
+                <CardContent className="text-sm text-muted-foreground">
+                  Each case includes contributing factors, recommendations, and a traceable detector breakdown.
+                </CardContent>
+              </Card>
+            </TooltipProvider>
           </div>
         </div>
 

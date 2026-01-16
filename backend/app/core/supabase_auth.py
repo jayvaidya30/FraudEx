@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
+from typing import Any, TypedDict, cast
 
 import httpx
 from fastapi import Header, HTTPException, status
@@ -18,7 +19,12 @@ class CurrentUser:
     raw_claims: dict
 
 
-_JWKS_CACHE: dict[str, object] = {"fetched_at": 0.0, "jwks": None}
+class _JwksCache(TypedDict):
+    fetched_at: float
+    jwks: dict[str, Any] | None
+
+
+_JWKS_CACHE: _JwksCache = {"fetched_at": 0.0, "jwks": None}
 _JWKS_TTL_SECONDS = 10 * 60
 
 
@@ -54,7 +60,7 @@ async def _fetch_user_via_supabase(token: str) -> CurrentUser:
     )
 
 
-async def _get_jwks() -> dict:
+async def _get_jwks() -> dict[str, Any]:
     jwks_url = settings.supabase_jwks_url
     if not jwks_url:
         raise HTTPException(
@@ -64,14 +70,14 @@ async def _get_jwks() -> dict:
 
     now = time.time()
     cached_jwks = _JWKS_CACHE.get("jwks")
-    cached_at = float(_JWKS_CACHE.get("fetched_at") or 0.0)
-    if cached_jwks and now - cached_at < _JWKS_TTL_SECONDS:
-        return cached_jwks  # type: ignore[return-value]
+    cached_at = _JWKS_CACHE.get("fetched_at", 0.0)
+    if cached_jwks is not None and now - cached_at < _JWKS_TTL_SECONDS:
+        return cached_jwks
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         response = await client.get(jwks_url)
         response.raise_for_status()
-        jwks = response.json()
+        jwks = cast(dict[str, Any], response.json())
 
     _JWKS_CACHE["jwks"] = jwks
     _JWKS_CACHE["fetched_at"] = now

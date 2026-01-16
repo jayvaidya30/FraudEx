@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 import { ThemeProvider } from "@/components/app/theme-provider";
-import { TopNav } from "@/components/app/top-nav";
+import { Navbar } from "@/components/app/navbar";
 import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
@@ -30,7 +30,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ThemeProvider>
-          <TopNav />
+          <Navbar />
           {children}
           <Toaster richColors closeButton />
         </ThemeProvider>

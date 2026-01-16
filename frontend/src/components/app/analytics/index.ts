@@ -1,6 +1,10 @@
 export { RiskDistributionChart } from "./risk-distribution-chart";
+export { RiskDistributionBarChart } from "./risk-distribution-bar-chart";
 export { TrendChart } from "./trend-chart";
+export { TrendStackedAreaChart } from "./trend-stacked-area-chart";
 export { TopSignals } from "./top-signals";
 export { DetectorPerformance } from "./detector-performance";
+export { DetectorPerformanceBarChart } from "./detector-performance-bar-chart";
 export { MetricCard } from "./metric-card";
+export { MetricCardWithSparkline } from "./metric-card-with-sparkline";
 export { CohortAnalysisChart } from "./cohort-analysis";
